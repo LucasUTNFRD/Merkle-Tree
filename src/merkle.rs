@@ -96,10 +96,11 @@ impl MerkleTree {
         let mut proof = vec![];
         let mut current_index = leaf_index;
         // loop each level of the tree
-        for level in self.tree.iter() {
+        for level in 0..self.tree.len() - 1 {
+            let current_level = &self.tree[level];
             let sibling_index = if current_index % 2 == 0 {
                 // if current sibling is leaft, check right sibling
-                if current_index + 1 < level.len() {
+                if current_index + 1 < current_level.len() {
                     current_index + 1
                 } else {
                     current_index
@@ -108,7 +109,7 @@ impl MerkleTree {
                 current_index - 1
             };
             // push the sibling hash to the proof
-            proof.push(level[sibling_index]);
+            proof.push(current_level[sibling_index]);
 
             current_index /= 2;
         }
@@ -135,6 +136,8 @@ impl MerkleTree {
 
 #[cfg(test)]
 mod tests {
+    use std::env::consts::OS;
+
     use super::*;
 
     #[test]
@@ -152,7 +155,6 @@ mod tests {
         // Verify tree structure is not empty
         assert!(!merkle.tree.is_empty());
 
-        // Manually calculate expected hashes
         let leaf1 = hash(&data[0]);
         let leaf2 = hash(&data[1]);
         let leaf3 = hash(&data[2]);
@@ -219,17 +221,45 @@ mod tests {
 
         let merkle = MerkleTree::new(&data);
 
-        // Print each level of the merkle tree
-        for level in merkle.tree.iter() {
-            debug!("{:?}", level);
-        }
+        let proof = merkle.generate_proof(1).unwrap();
+
+        assert_eq!(proof.proof.len(), 2);
+
+        let leaf1 = hash(&data[0]);
+        let leaf2 = hash(&data[1]);
+        let leaf3 = hash(&data[2]);
+        let leaf4 = hash(&data[3]);
+
+        // Calculate internal nodes
+        let _internal1 = hash_internal_node(&leaf1, &leaf2);
+        let internal2 = hash_internal_node(&leaf3, &leaf4);
+
+        let expected_proof = vec![leaf1, internal2];
+
+        assert_eq!(proof.proof, expected_proof);
+    }
+
+    #[test]
+    fn test_generate_proof_edge_case() {
+        let data = vec![b"block1".to_vec(), b"block2".to_vec(), b"block3".to_vec()];
+
+        let merkle = MerkleTree::new(&data);
+
+        let leaf1 = hash(&data[0]);
+        let leaf2 = hash(&data[1]);
+        let leaf3 = hash(&data[2]);
+
+        let internal1 = hash_internal_node(&leaf1, &leaf2);
+        let internal2 = hash_internal_node(&leaf3, &leaf3);
+
+        let _root = hash_internal_node(&internal1, &internal2);
 
         let proof = merkle.generate_proof(1).unwrap();
 
-        // print the proof
         debug!("{:?}", proof);
 
-        assert_eq!(proof.proof.len(), 2);
-        // the generat proof is adding alway the root of the tree
+        let expected_proof = vec![leaf1, internal2];
+
+        assert_eq!(proof.proof, expected_proof);
     }
 }
