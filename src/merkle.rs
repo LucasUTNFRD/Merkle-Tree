@@ -1,13 +1,13 @@
 use sha3::{Digest, Sha3_256};
 
-type Hash = Vec<u8>;
+type Hash = [u8; 32];
 
 struct Merkle {
     tree: Vec<Hash>, // This will be a binary tree represented as a vector
 }
 
 fn hash(element: &[u8]) -> Hash {
-    Sha3_256::digest(element).to_vec()
+    Sha3_256::digest(element).into()
 }
 
 // Helper function to hash two internal nodes
@@ -15,7 +15,7 @@ fn hash_internal_node(left: &Hash, right: &Hash) -> Hash {
     let mut hasher = Sha3_256::new();
     hasher.update(left);
     hasher.update(right);
-    hasher.finalize().to_vec()
+    hasher.finalize().into()
 }
 
 impl Merkle {
@@ -23,7 +23,7 @@ impl Merkle {
     /// TODO: Make this function generic to accept any type that can be hashed.
     ///
     pub fn new(data: &[Vec<u8>]) -> Self {
-        assert!(data.len() > 1, "Data must have at least 2 elements");
+        assert!(!data.is_empty(), "Data must have at least 1 elements");
         let mut tree = Merkle { tree: vec![] };
         tree.build(data);
         tree
@@ -39,8 +39,7 @@ impl Merkle {
         let mut count_leaves = current_level.len();
         while count_leaves > 1 {
             let mut level_hashes: Vec<Hash> = vec![];
-            let mut i = 0;
-            while i < count_leaves {
+            for i in (0..count_leaves).step_by(2) {
                 if i + 1 < count_leaves {
                     // Combine adjacent hashes
                     level_hashes.push(hash_internal_node(&current_level[i], &current_level[i + 1]));
@@ -48,7 +47,6 @@ impl Merkle {
                     // Clone the last hash to create a pair
                     level_hashes.push(hash_internal_node(&current_level[i], &current_level[i]));
                 }
-                i += 2;
             }
 
             // Update current level and extend tree
@@ -116,8 +114,6 @@ mod tests {
 
         let merkle = Merkle::new(&data);
 
-        println!("{:?}", merkle.tree.len());
-
         let leaf1 = hash(&data[0]);
         let leaf2 = hash(&data[1]);
         let leaf3 = hash(&data[2]);
@@ -137,6 +133,19 @@ mod tests {
         assert_eq!(merkle.tree[4], internal2);
 
         assert_eq!(merkle.tree[5], root);
+    }
+
+    #[test]
+    fn test_build_tree_single() {
+        // Test data
+        let data = vec![b"block1".to_vec()];
+
+        let merkle = Merkle::new(&data);
+
+        let leaf1 = hash(&data[0]);
+
+        assert_eq!(merkle.tree.len(), 1);
+        assert_eq!(merkle.tree[0], leaf1);
     }
 
     #[test]
