@@ -1,13 +1,4 @@
-use std::thread::current;
-
 use sha3::{Digest, Sha3_256};
-
-macro_rules! debug {
-    ($($arg:tt)*) => {
-        #[cfg(test)]
-        println!($($arg)*);
-    };
-}
 
 type Hash = [u8; 32];
 
@@ -136,7 +127,6 @@ impl MerkleTree {
 
 #[cfg(test)]
 mod tests {
-    use std::env::consts::OS;
 
     use super::*;
 
@@ -255,8 +245,6 @@ mod tests {
         let _root = hash_internal_node(&internal1, &internal2);
 
         let proof = merkle.generate_proof(1).unwrap();
-
-        debug!("{:?}", proof);
 
         let expected_proof = vec![leaf1, internal2];
 
