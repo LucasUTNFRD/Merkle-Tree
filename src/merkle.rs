@@ -3,7 +3,8 @@ use sha3::{Digest, Sha3_256};
 type Hash = [u8; 32];
 
 struct Merkle {
-    tree: Vec<Hash>, // This will be a binary tree represented as a vector
+    tree: Vec<Hash>,   // This will be a binary tree represented as a vector
+    leaves: Vec<Hash>, // This will be uses to add new elements to the tree
 }
 
 fn hash(element: &[u8]) -> Hash {
@@ -21,18 +22,22 @@ fn hash_internal_node(left: &Hash, right: &Hash) -> Hash {
 impl Merkle {
     /// Creates a new Merkle tree from a list of data elements.
     /// TODO: Make this function generic to accept any type that can be hashed.
-    ///
+    /// TODO:  Return an error if the data is empty.
     pub fn new(data: &[Vec<u8>]) -> Self {
         assert!(!data.is_empty(), "Data must have at least 1 elements");
-        let mut tree = Merkle { tree: vec![] };
-        tree.build(data);
+        let leaves: Vec<Hash> = data.iter().map(|element| hash(element)).collect();
+        let mut tree = Merkle {
+            tree: vec![],
+            leaves,
+        };
+        tree.build();
         tree
     }
 
     /// Builds the Merkle Tree using a recursive bottom-up approach.
-    fn build(&mut self, data: &[Vec<u8>]) {
+    fn build(&mut self) {
         // Initialize tree with leaf-level hashes
-        let mut current_level: Vec<Hash> = data.iter().map(|element| hash(element)).collect();
+        let mut current_level = self.leaves.clone();
         let mut tree = current_level.clone();
 
         // Build tree bottom-up
@@ -61,6 +66,25 @@ impl Merkle {
     /// Returns the root hash of the Merkle tree.
     pub fn root(&self) -> Hash {
         self.tree.last().unwrap().clone()
+    }
+
+    pub fn proof() {
+        todo!()
+    }
+
+    pub fn verify() {
+        todo!()
+    }
+
+    /// Should update a leef at the bottom most level of the tree
+    pub fn set() {
+        todo!()
+    }
+
+    pub fn add(&mut self, data: Vec<u8>) {
+        // Add to the leaves and rebuild the tree
+        self.leaves.push(hash(&data));
+        self.build();
     }
 }
 
