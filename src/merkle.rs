@@ -2,9 +2,13 @@ use sha3::{Digest, Sha3_256};
 
 type Hash = [u8; 32];
 
-struct Merkle {
+struct MerkleTree {
     tree: Vec<Hash>,   // This will be a binary tree represented as a vector
     leaves: Vec<Hash>, // This will be uses to add new elements to the tree
+}
+
+struct MerkleProof {
+    proof: Vec<Hash>,
 }
 
 fn hash(element: &[u8]) -> Hash {
@@ -19,14 +23,14 @@ fn hash_internal_node(left: &Hash, right: &Hash) -> Hash {
     hasher.finalize().into()
 }
 
-impl Merkle {
+impl MerkleTree {
     /// Creates a new Merkle tree from a list of data elements.
     /// TODO: Make this function generic to accept any type that can be hashed.
     /// TODO:  Return an error if the data is empty.
     pub fn new(data: &[Vec<u8>]) -> Self {
         assert!(!data.is_empty(), "Data must have at least 1 elements");
         let leaves: Vec<Hash> = data.iter().map(|element| hash(element)).collect();
-        let mut tree = Merkle {
+        let mut tree = MerkleTree {
             tree: vec![],
             leaves,
         };
@@ -68,11 +72,19 @@ impl Merkle {
         *self.tree.last().unwrap()
     }
 
-    pub fn proof() {
-        todo!()
+    /// Generate proof for a given leaf index.
+    pub fn generate_proof(self, leaf_index: usize) -> Option<MerkleProof> {
+        if leaf_index >= self.leaves.len() {
+            return None;
+        }
+
+        let mut proof = vec![];
+
+        Some(MerkleProof { proof })
     }
 
-    pub fn verify() {
+    /// Validate a Merkle proof
+    pub fn generate_verify() {
         todo!()
     }
 
@@ -102,7 +114,7 @@ mod tests {
             b"block4".to_vec(),
         ];
 
-        let merkle = Merkle::new(&data);
+        let merkle = MerkleTree::new(&data);
 
         // Verify tree structure is not empty
         assert!(!merkle.tree.is_empty());
@@ -142,7 +154,7 @@ mod tests {
         // Test data
         let data = vec![b"block1".to_vec(), b"block2".to_vec(), b"block3".to_vec()];
 
-        let merkle = Merkle::new(&data);
+        let merkle = MerkleTree::new(&data);
 
         let leaf1 = hash(&data[0]);
         let leaf2 = hash(&data[1]);
@@ -171,7 +183,7 @@ mod tests {
         // Test data
         let data = vec![b"block1".to_vec()];
 
-        let merkle = Merkle::new(&data);
+        let merkle = MerkleTree::new(&data);
 
         let leaf1 = hash(&data[0]);
 
@@ -183,7 +195,7 @@ mod tests {
     #[should_panic]
     fn test_build_tree_empty() {
         let data = vec![];
-        let _merkle = Merkle::new(&data);
+        let _merkle = MerkleTree::new(&data);
     }
 
     #[test]
@@ -195,7 +207,7 @@ mod tests {
             b"block4".to_vec(),
         ];
 
-        let merkle = Merkle::new(&data);
+        let merkle = MerkleTree::new(&data);
         let root = merkle.root();
 
         let leaf1 = hash(&data[0]);
