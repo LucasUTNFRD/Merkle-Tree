@@ -1,3 +1,5 @@
+use std::thread::current;
+
 use sha3::{Digest, Sha3_256};
 
 macro_rules! debug {
@@ -30,10 +32,6 @@ fn hash_internal_node(left: &Hash, right: &Hash) -> Hash {
     hasher.update(left);
     hasher.update(right);
     hasher.finalize().into()
-}
-
-fn index_of_parent_in_level(current_index: usize, level_start: usize, level_size: usize) -> usize {
-    level_start + (current_index - (level_start - level_size)) / 2
 }
 
 impl MerkleTree {
@@ -85,9 +83,37 @@ impl MerkleTree {
         *self.tree.last().unwrap().first().unwrap()
     }
 
+    // A proof is a list of hashes that can be used to verify the membership of a leaf in the tree
+    // For now the proof is simply that a  list of hashes.
+    // Possible improvements:
+    // 1. Store the direction of the hash (left or right) and the level of the tree
     pub fn generate_proof(&self, leaf_index: usize) -> Option<MerkleProof> {
         // Implement this for refactored Merkle Tree
-        todo!()
+        if leaf_index >= self.leaves.len() {
+            return None;
+        }
+
+        let mut proof = vec![];
+        let mut current_index = leaf_index;
+        // loop each level of the tree
+        for level in self.tree.iter() {
+            let sibling_index = if current_index % 2 == 0 {
+                // if current sibling is leaft, check right sibling
+                if current_index + 1 < level.len() {
+                    current_index + 1
+                } else {
+                    current_index
+                }
+            } else {
+                current_index - 1
+            };
+            // push the sibling hash to the proof
+            proof.push(level[sibling_index]);
+
+            current_index /= 2;
+        }
+
+        Some(MerkleProof { proof })
     }
 
     /// Validate a Merkle proof
@@ -180,5 +206,30 @@ mod tests {
         ];
 
         assert_eq!(expected_tree, merkle.tree);
+    }
+
+    #[test]
+    fn test_generate_proof() {
+        let data = vec![
+            b"block1".to_vec(),
+            b"block2".to_vec(),
+            b"block3".to_vec(),
+            b"block4".to_vec(),
+        ];
+
+        let merkle = MerkleTree::new(&data);
+
+        // Print each level of the merkle tree
+        for level in merkle.tree.iter() {
+            debug!("{:?}", level);
+        }
+
+        let proof = merkle.generate_proof(1).unwrap();
+
+        // print the proof
+        debug!("{:?}", proof);
+
+        assert_eq!(proof.proof.len(), 2);
+        // the generat proof is adding alway the root of the tree
     }
 }
