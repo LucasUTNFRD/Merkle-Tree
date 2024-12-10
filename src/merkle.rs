@@ -57,6 +57,11 @@ impl Merkle {
 
         self.tree = tree;
     }
+
+    /// Returns the root hash of the Merkle tree.
+    pub fn root(&self) -> Hash {
+        self.tree.last().unwrap().clone()
+    }
 }
 
 #[cfg(test)]
@@ -153,5 +158,30 @@ mod tests {
     fn test_build_tree_empty() {
         let data = vec![];
         let _merkle = Merkle::new(&data);
+    }
+
+    #[test]
+    fn test_get_root() {
+        let data = vec![
+            b"block1".to_vec(),
+            b"block2".to_vec(),
+            b"block3".to_vec(),
+            b"block4".to_vec(),
+        ];
+
+        let merkle = Merkle::new(&data);
+        let root = merkle.root();
+
+        let leaf1 = hash(&data[0]);
+        let leaf2 = hash(&data[1]);
+        let leaf3 = hash(&data[2]);
+        let leaf4 = hash(&data[3]);
+
+        let internal1 = hash_internal_node(&leaf1, &leaf2);
+        let internal2 = hash_internal_node(&leaf3, &leaf4);
+
+        let expected_root = hash_internal_node(&internal1, &internal2);
+
+        assert_eq!(root, expected_root);
     }
 }
