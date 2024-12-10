@@ -1,12 +1,21 @@
 use sha3::{Digest, Sha3_256};
 
+macro_rules! debug {
+    ($($arg:tt)*) => {
+        #[cfg(test)]
+        println!($($arg)*);
+    };
+}
+
 type Hash = [u8; 32];
 
+#[derive(Debug)]
 struct MerkleTree {
     tree: Vec<Hash>,   // This will be a binary tree represented as a vector
     leaves: Vec<Hash>, // This will be uses to add new elements to the tree
 }
 
+#[derive(Debug)]
 struct MerkleProof {
     proof: Vec<Hash>,
 }
@@ -76,38 +85,43 @@ impl MerkleTree {
         *self.tree.last().unwrap()
     }
 
-    /// Generate proof for a given leaf index.
-    pub fn generate_proof(self, leaf_index: usize) -> Option<MerkleProof> {
+    pub fn generate_proof(&self, leaf_index: usize) -> Option<MerkleProof> {
         if leaf_index >= self.leaves.len() {
             return None;
         }
-        // init proof vector
-        let mut proof = vec![];
+
+        let mut proof = Vec::new();
         let mut current_index = leaf_index;
         let mut level_size = self.leaves.len();
-        let mut level_start = 0;
+        let mut offset = 0;
 
-        // Same logic as build to break loop when level_size becomes 1
+        // Same logic as build()
         while level_size > 1 {
-            let if_left = current_index % 2 == 0;
-            let sibling_index = if if_left {
-                if current_index + 1 < level_size {
+            // Calculate sibling index
+            let sibling_index = if current_index % 2 == 0 {
+                // If current_index is even, sibling is to the right
+                if current_index + 1 < offset + level_size {
                     current_index + 1
                 } else {
+                    // If no right sibling exists, use current node
                     current_index
                 }
             } else {
+                // If current_index is odd, sibling is to the left
                 current_index - 1
             };
 
             // Add sibling to proof
             proof.push(self.tree[sibling_index]);
 
-            // Move to parent node
-            level_start += level_size;
-            current_index = index_of_parent_in_level(current_index, level_start, level_size);
+            // Move to parent level
+            offset += level_size;
+            // Calculate parent index
+            // current_index = offset + (current_index - (offset - level_size)) / 2;
+            current_index = offset + (current_index % level_size) / 2;
             level_size = (level_size + 1) / 2;
         }
+
         Some(MerkleProof { proof })
     }
 
@@ -249,5 +263,79 @@ mod tests {
         let expected_root = hash_internal_node(&internal1, &internal2);
 
         assert_eq!(root, expected_root);
+    }
+
+    #[test]
+    fn test_generate_proof_four_leaves() {
+        let data = vec![
+            b"block1".to_vec(),
+            b"block2".to_vec(),
+            b"block3".to_vec(),
+            b"block4".to_vec(),
+        ];
+        let merkle = MerkleTree::new(&data);
+
+        let proof = merkle.generate_proof(1).unwrap();
+
+        //            root
+        //              6
+        //           /    \
+        //         AB       CD
+        //          4       5
+        //        / \       / \
+        //       A    B    C    D
+        //       0    1    2    3
+        // Proof for B should be [A, CD]
+        let elem1 = merkle.tree[0]; // A
+        let elem2 = merkle.tree[5]; // CD
+
+        let expected_proof = MerkleProof {
+            proof: vec![elem1, elem2],
+        };
+
+        assert_eq!(proof.proof, expected_proof.proof);
+    }
+
+    #[test]
+    fn test_generate_proof_three_leaves() {
+        //            root (5)
+        //           /        \
+        //         AB(3)    CC'(4)
+        //        / \         /
+        //    A(0)  B(1)   C(2)
+        let data = vec![b"block1".to_vec(), b"block2".to_vec(), b"block3".to_vec()];
+        let merkle = MerkleTree::new(&data);
+
+        // print the tree size
+        println!("Tree size: {:?}", merkle.tree.len());
+
+        // Get proof for leaf B (index 1)
+        let proof = merkle.generate_proof(1).unwrap();
+
+        // For debugging
+        println!("Tree structure:");
+        for (i, hash) in merkle.tree.iter().enumerate() {
+            println!("Index {}: {:?}", i, hash);
+        }
+
+        // For leaf B (index 1), the proof should contain:
+        // 1. Hash of A (sibling at leaf level)
+        // 2. Hash of CC' (sibling at internal level)
+        let expected_proof = MerkleProof {
+            proof: vec![merkle.tree[0], merkle.tree[4]],
+        };
+
+        println!("Generated proof: {:?}", proof);
+        println!("Expected proof: {:?}", expected_proof);
+
+        assert_eq!(proof.proof, expected_proof.proof);
+
+        // Also test proof for leaf C (index 2)
+        let proof_c = merkle.generate_proof(2).unwrap();
+        let expected_proof_c = MerkleProof {
+            proof: vec![merkle.tree[2], merkle.tree[3]], // [C (duplicate), AB]
+        };
+
+        assert_eq!(proof_c.proof, expected_proof_c.proof);
     }
 }
