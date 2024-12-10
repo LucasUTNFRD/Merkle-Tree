@@ -65,7 +65,7 @@ impl Merkle {
 
     /// Returns the root hash of the Merkle tree.
     pub fn root(&self) -> Hash {
-        self.tree.last().unwrap().clone()
+        *self.tree.last().unwrap()
     }
 
     pub fn proof() {
@@ -134,6 +134,7 @@ mod tests {
         assert_eq!(merkle.tree[5], internal2);
 
         assert_eq!(merkle.tree[6], root);
+        assert_eq!(merkle.root(), root);
     }
 
     #[test]
@@ -162,6 +163,7 @@ mod tests {
         assert_eq!(merkle.tree[4], internal2);
 
         assert_eq!(merkle.tree[5], root);
+        assert_eq!(merkle.root(), root);
     }
 
     #[test]
