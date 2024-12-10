@@ -23,6 +23,10 @@ fn hash_internal_node(left: &Hash, right: &Hash) -> Hash {
     hasher.finalize().into()
 }
 
+fn index_of_parent_in_level(current_index: usize, level_start: usize, level_size: usize) -> usize {
+    level_start + (current_index - (level_start - level_size)) / 2
+}
+
 impl MerkleTree {
     /// Creates a new Merkle tree from a list of data elements.
     /// TODO: Make this function generic to accept any type that can be hashed.
@@ -77,9 +81,33 @@ impl MerkleTree {
         if leaf_index >= self.leaves.len() {
             return None;
         }
-
+        // init proof vector
         let mut proof = vec![];
+        let mut current_index = leaf_index;
+        let mut level_size = self.leaves.len();
+        let mut level_start = 0;
 
+        // Same logic as build to break loop when level_size becomes 1
+        while level_size > 1 {
+            let if_left = current_index % 2 == 0;
+            let sibling_index = if if_left {
+                if current_index + 1 < level_size {
+                    current_index + 1
+                } else {
+                    current_index
+                }
+            } else {
+                current_index - 1
+            };
+
+            // Add sibling to proof
+            proof.push(self.tree[sibling_index]);
+
+            // Move to parent node
+            level_start += level_size;
+            current_index = index_of_parent_in_level(current_index, level_start, level_size);
+            level_size = (level_size + 1) / 2;
+        }
         Some(MerkleProof { proof })
     }
 
