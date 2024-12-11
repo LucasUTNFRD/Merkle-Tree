@@ -1,5 +1,3 @@
-use std::thread::current;
-
 use sha3::{Digest, Sha3_256};
 
 type Hash = [u8; 32];
