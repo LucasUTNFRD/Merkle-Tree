@@ -100,7 +100,7 @@ impl MerkleTree {
             let current_level = &self.tree[level];
             let is_left = current_index % 2 == 0;
             let sibling_index = if is_left {
-                // if current sibling is leaft, check right sibling
+                // if current sibling is left, check right sibling
                 if current_index + 1 < current_level.len() {
                     current_index + 1
                 } else {
@@ -109,8 +109,9 @@ impl MerkleTree {
             } else {
                 current_index - 1
             };
-            // push the sibling hash to the proof
-            proof.push((current_level[sibling_index], is_left));
+
+            // I used !is_left to indicate if the sibling is on the right
+            proof.push((current_level[sibling_index], !is_left));
 
             current_index /= 2;
         }
@@ -134,9 +135,9 @@ impl MerkleTree {
             // If is_current_left is false, then our current_hash is on the right
             // and the sibling_hash should go on the left.
             current_hash = if *is_current_left {
-                hash_internal_node(&current_hash, sibling_hash)
-            } else {
                 hash_internal_node(sibling_hash, &current_hash)
+            } else {
+                hash_internal_node(&current_hash, sibling_hash)
             };
         }
 
@@ -254,7 +255,7 @@ mod tests {
         let _internal1 = hash_internal_node(&leaf1, &leaf2);
         let internal2 = hash_internal_node(&leaf3, &leaf4);
 
-        let expected_proof = vec![(leaf1, false), (internal2, true)];
+        let expected_proof = vec![(leaf1, true), (internal2, false)];
 
         // Print the tree by levels and print the proof
         for level in merkle.tree.iter() {
@@ -285,7 +286,7 @@ mod tests {
             .generate_proof(&data[1])
             .expect("Should generate proof");
 
-        let expected_proof = vec![(leaf1, false), (internal2, true)];
+        let expected_proof = vec![(leaf1, true), (internal2, false)];
 
         assert_eq!(proof, expected_proof);
     }
