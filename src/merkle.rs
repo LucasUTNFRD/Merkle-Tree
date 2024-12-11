@@ -5,6 +5,7 @@ type Hash = [u8; 32];
 #[derive(Debug)]
 pub enum MerkleError {
     LeafNotFound,
+    EmptyData,
 }
 
 #[derive(Debug)]
@@ -34,15 +35,17 @@ impl MerkleTree {
     /// Creates a new Merkle tree from a list of data elements.
     /// TODO: Make this function generic to accept any type that can be hashed.
     /// TODO:  Return an error if the data is empty.
-    pub fn new(data: &[Vec<u8>]) -> Self {
-        assert!(!data.is_empty(), "Data must have at least 1 elements");
+    pub fn new(data: &[Vec<u8>]) -> Result<Self, MerkleError> {
+        if data.is_empty() {
+            return Err(MerkleError::EmptyData);
+        }
         let leaves: Vec<Hash> = data.iter().map(|element| hash(element)).collect();
         let mut tree = MerkleTree {
             tree: vec![],
             leaves,
         };
         tree.build();
-        tree
+        Ok(tree)
     }
 
     /// Builds the Merkle Tree using a recursive bottom-up approach.
