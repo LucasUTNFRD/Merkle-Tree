@@ -3,15 +3,17 @@ use sha3::{Digest, Sha3_256};
 type Hash = [u8; 32];
 
 #[derive(Debug)]
-struct MerkleTree {
-    tree: Vec<Vec<Hash>>, // This will be a binary tree represented as a vector, with each level as a sub-vector with the hashes
-    leaves: Vec<Hash>,    // This will be uses to add new elements to the tree
+pub enum MerkleError {
+    LeafNotFound,
 }
 
 #[derive(Debug)]
-struct MerkleProof {
-    proof: Vec<Hash>,
+struct MerkleTree {
+    tree: Vec<Vec<Hash>>, // This will be a binary tree represented as a vector, with each level as a sub-vector with the hashes
+    leaves: Vec<Hash>,    // This will be uses to add new elements to the tree and rebuild it
 }
+
+type MerkleProof = Vec<Hash>;
 
 fn hash(element: &[u8]) -> Hash {
     Sha3_256::digest(element).into()
@@ -74,15 +76,17 @@ impl MerkleTree {
         *self.tree.last().unwrap().first().unwrap()
     }
 
-    // A proof is a list of hashes that can be used to verify the membership of a leaf in the tree
-    // For now the proof is simply that a  list of hashes.
-    // Possible improvements:
-    // 1. Store the direction of the hash (left or right) and the level of the tree
-    pub fn generate_proof(&self, leaf_index: usize) -> Option<MerkleProof> {
-        // Implement this for refactored Merkle Tree
-        if leaf_index >= self.leaves.len() {
-            return None;
-        }
+    /// A proof is a list of hashes that can be used to verify the membership of a leaf in the tree
+    /// For now the proof is simply that a  list of hashes.
+    /// Possible improvements:
+    /// 1. Store the direction of the hash (left or right) and the level of the tree
+    pub fn generate_proof(&self, data: &[u8]) -> Result<MerkleProof, MerkleError> {
+        // Find index of the leaf that corresponds to the given data
+        let leaf_index = self
+            .leaves
+            .iter()
+            .position(|leaf| hash(data) == *leaf)
+            .ok_or(MerkleError::LeafNotFound)?;
 
         let mut proof = vec![];
         let mut current_index = leaf_index;
@@ -105,7 +109,7 @@ impl MerkleTree {
             current_index /= 2;
         }
 
-        Some(MerkleProof { proof })
+        Ok(proof)
     }
 
     /// Validate a Merkle proof
@@ -211,9 +215,11 @@ mod tests {
 
         let merkle = MerkleTree::new(&data);
 
-        let proof = merkle.generate_proof(1).unwrap();
+        let proof = merkle
+            .generate_proof(&data[1])
+            .expect("Should generate proof");
 
-        assert_eq!(proof.proof.len(), 2);
+        assert_eq!(proof.len(), 2);
 
         let leaf1 = hash(&data[0]);
         let leaf2 = hash(&data[1]);
@@ -226,7 +232,7 @@ mod tests {
 
         let expected_proof = vec![leaf1, internal2];
 
-        assert_eq!(proof.proof, expected_proof);
+        assert_eq!(proof, expected_proof);
     }
 
     #[test]
@@ -244,10 +250,12 @@ mod tests {
 
         let _root = hash_internal_node(&internal1, &internal2);
 
-        let proof = merkle.generate_proof(1).unwrap();
+        let proof = merkle
+            .generate_proof(&data[1])
+            .expect("Should generate proof");
 
         let expected_proof = vec![leaf1, internal2];
 
-        assert_eq!(proof.proof, expected_proof);
+        assert_eq!(proof, expected_proof);
     }
 }
