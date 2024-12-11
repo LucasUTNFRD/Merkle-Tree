@@ -122,6 +122,8 @@ impl MerkleTree {
         todo!()
     }
 
+    /// Add a new element to the tree
+    /// This will add a new leaf to the tree and rebuild it
     pub fn add(&mut self, data: Vec<u8>) {
         // Add to the leaves and rebuild the tree
         self.leaves.push(hash(&data));
