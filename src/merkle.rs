@@ -19,7 +19,9 @@ struct MerkleTree {
 /// Each hash has associated a boolean value that indicates if the hash is a left or right sibling
 type MerkleProof = Vec<(Hash, bool)>;
 
-fn hash(element: &[u8]) -> Hash {
+// Define the hash function as generic to accept any type that can be hashed
+// fn hash(element: &[u8]) -> Hash {
+fn hash<T: AsRef<[u8]>>(element: T) -> Hash {
     Sha3_256::digest(element).into()
 }
 
@@ -170,10 +172,7 @@ mod tests {
             b"block4".to_vec(),
         ];
 
-        let merkle = MerkleTree::new(&data);
-
-        // Verify tree structure is not empty
-        assert!(!merkle.tree.is_empty());
+        let merkle = MerkleTree::new(&data).expect("Should create merkle tree");
 
         let leaf1 = hash(&data[0]);
         let leaf2 = hash(&data[1]);
@@ -208,7 +207,7 @@ mod tests {
     fn test_build_tree_odd_number() {
         let data = vec![b"block1".to_vec(), b"block2".to_vec(), b"block3".to_vec()];
 
-        let merkle = MerkleTree::new(&data);
+        let merkle = MerkleTree::new(&data).expect("Should create merkle tree");
 
         let leaf1 = hash(&data[0]);
         let leaf2 = hash(&data[1]);
@@ -239,7 +238,7 @@ mod tests {
             b"block4".to_vec(),
         ];
 
-        let merkle = MerkleTree::new(&data);
+        let merkle = MerkleTree::new(&data).expect("Should create merkle tree");
 
         let proof = merkle
             .generate_proof(&data[1])
@@ -272,7 +271,7 @@ mod tests {
     fn test_generate_proof_edge_case() {
         let data = vec![b"block1".to_vec(), b"block2".to_vec(), b"block3".to_vec()];
 
-        let merkle = MerkleTree::new(&data);
+        let merkle = MerkleTree::new(&data).expect("Should create merkle tree");
 
         let leaf1 = hash(&data[0]);
         let leaf2 = hash(&data[1]);
@@ -301,7 +300,7 @@ mod tests {
             b"block4".to_vec(),
         ];
 
-        let merkle = MerkleTree::new(&data);
+        let merkle = MerkleTree::new(&data).expect("Should create merkle tree");
 
         // Generate and verify proof for "block2"
         let proof = merkle
@@ -323,7 +322,7 @@ mod tests {
     fn test_verify_proof_edge_case() {
         let data = vec![b"block1".to_vec(), b"block2".to_vec(), b"block3".to_vec()];
 
-        let merkle = MerkleTree::new(&data);
+        let merkle = MerkleTree::new(&data).expect("Should create merkle tree");
 
         let proof = merkle
             .generate_proof(&data[1])
