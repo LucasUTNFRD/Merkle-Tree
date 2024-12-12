@@ -9,9 +9,13 @@ pub enum MerkleError {
 }
 
 #[derive(Debug)]
+/// Represents a Merkle Tree data structure
+/// The tree is represented as a list of levels, where each level is a list of hashes
+/// The leaves are stored separately from the internal nodes
+/// The root hash is the first element of the last level
 struct MerkleTree {
-    tree: Vec<Vec<Hash>>, // This will be a binary tree represented as a vector, with each level as a sub-vector with the hashes
-    leaves: Vec<Hash>,    // This will be uses to add new elements to the tree and rebuild it
+    tree: Vec<Vec<Hash>>,
+    leaves: Vec<Hash>,
 }
 
 /// Type alias for a Merkle proof
@@ -19,13 +23,11 @@ struct MerkleTree {
 /// Each hash has associated a boolean value that indicates if the hash is a left or right sibling
 type MerkleProof = Vec<(Hash, bool)>;
 
-// Define the hash function as generic to accept any type that can be hashed
-// fn hash(element: &[u8]) -> Hash {
 fn hash<T: AsRef<[u8]>>(element: T) -> Hash {
     Sha3_256::digest(element).into()
 }
 
-// Helper function to hash two internal nodes
+/// Hashes two hashes together to create a new hash
 fn hash_internal_node(left: &Hash, right: &Hash) -> Hash {
     let mut hasher = Sha3_256::new();
     hasher.update(left);
@@ -34,9 +36,21 @@ fn hash_internal_node(left: &Hash, right: &Hash) -> Hash {
 }
 
 impl MerkleTree {
-    /// Creates a new Merkle tree from a list of data elements.
-    /// TODO: Make this function generic to accept any type that can be hashed.
-    /// TODO:  Return an error if the data is empty.
+    /// Creates a new Merkle Tree from a list of data elements
+    /// The data elements are hashed to create the leaves of the tree
+    /// The tree is then built using a recursive bottom-up approach
+    ///
+    /// # Arguments
+    /// a list of data elements that implement AsRef<[u8]>
+    ///
+    /// # Returns
+    /// A MerkleTree instance if the data is not empty, otherwise an error
+    ///
+    /// # Example
+    /// ```
+    /// let data = vec![b"block1", b"block2", b"block3"];
+    /// let merkle = MerkleTree::new(&data).expect("Should create merkle tree");
+    /// ```
     pub fn new<T: AsRef<[u8]>>(data: &[T]) -> Result<Self, MerkleError> {
         if data.is_empty() {
             return Err(MerkleError::EmptyData);
