@@ -5,24 +5,35 @@ type Hash = [u8; 32];
 #[derive(Debug)]
 pub enum MerkleError {
     LeafNotFound,
+    EmptyData,
 }
 
 #[derive(Debug)]
+/// Represents a Merkle Tree data structure
+/// The tree is represented as a list of levels, where each level is a list of hashes
+/// The leaves are stored separately from the internal nodes
+/// The root hash is the first element of the last level
 struct MerkleTree {
-    tree: Vec<Vec<Hash>>, // This will be a binary tree represented as a vector, with each level as a sub-vector with the hashes
-    leaves: Vec<Hash>,    // This will be uses to add new elements to the tree and rebuild it
+    tree: Vec<Vec<Hash>>,
+    leaves: Vec<Hash>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum Direction {
+    Left,
+    Right,
 }
 
 /// Type alias for a Merkle proof
 /// A proof is a list of hashes that can be used to verify the membership of a leaf in the tree
-/// Each hash has associated a boolean value that indicates if the hash is a left or right sibling
-type MerkleProof = Vec<(Hash, bool)>;
+/// Each hash has associated a Direction Enum that indicates if the hash is a left or right sibling
+type MerkleProof = Vec<(Hash, Direction)>;
 
-fn hash(element: &[u8]) -> Hash {
+fn hash<T: AsRef<[u8]>>(element: T) -> Hash {
     Sha3_256::digest(element).into()
 }
 
-// Helper function to hash two internal nodes
+/// Hashes two hashes together to create a new hash
 fn hash_internal_node(left: &Hash, right: &Hash) -> Hash {
     let mut hasher = Sha3_256::new();
     hasher.update(left);
@@ -30,19 +41,41 @@ fn hash_internal_node(left: &Hash, right: &Hash) -> Hash {
     hasher.finalize().into()
 }
 
+fn determine_direction(index: usize) -> Direction {
+    if index % 2 == 0 {
+        Direction::Left
+    } else {
+        Direction::Right
+    }
+}
+
 impl MerkleTree {
-    /// Creates a new Merkle tree from a list of data elements.
-    /// TODO: Make this function generic to accept any type that can be hashed.
-    /// TODO:  Return an error if the data is empty.
-    pub fn new(data: &[Vec<u8>]) -> Self {
-        assert!(!data.is_empty(), "Data must have at least 1 elements");
-        let leaves: Vec<Hash> = data.iter().map(|element| hash(element)).collect();
+    /// Creates a new Merkle Tree from a list of data elements
+    /// The data elements are hashed to create the leaves of the tree
+    /// The tree is then built using a recursive bottom-up approach
+    ///
+    /// # Arguments
+    /// a list of data elements that implement AsRef<[u8]>
+    ///
+    /// # Returns
+    /// A MerkleTree instance if the data is not empty, otherwise an error
+    ///
+    /// # Example
+    /// ```
+    /// let data = vec![b"block1", b"block2", b"block3"];
+    /// let merkle = MerkleTree::new(&data).expect("Should create merkle tree");
+    /// ```
+    pub fn new<T: AsRef<[u8]>>(data: &[T]) -> Result<Self, MerkleError> {
+        if data.is_empty() {
+            return Err(MerkleError::EmptyData);
+        }
+        let leaves: Vec<Hash> = data.iter().map(hash).collect();
         let mut tree = MerkleTree {
             tree: vec![],
             leaves,
         };
         tree.build();
-        tree
+        Ok(tree)
     }
 
     /// Builds the Merkle Tree using a recursive bottom-up approach.
@@ -83,7 +116,7 @@ impl MerkleTree {
     /// For now the proof is simply that a  list of hashes.
     /// Possible improvements:
     /// 1. Store the direction of the hash (left or right) and the level of the tree
-    pub fn generate_proof(&self, data: &[u8]) -> Result<MerkleProof, MerkleError> {
+    pub fn generate_proof<T: AsRef<[u8]>>(&self, data: &T) -> Result<MerkleProof, MerkleError> {
         // Find index of the leaf that corresponds to the given data
         let leaf_index = self
             .leaves
@@ -96,20 +129,23 @@ impl MerkleTree {
         // loop each level of the tree
         for level in 0..self.tree.len() - 1 {
             let current_level = &self.tree[level];
-            let is_left = current_index % 2 == 0;
-            let sibling_index = if is_left {
-                // if current sibling is left, check right sibling
-                if current_index + 1 < current_level.len() {
-                    current_index + 1
-                } else {
-                    current_index
+            // let is_left = current_index % 2 == 0;
+            let current_direction = determine_direction(current_index);
+            let sibling_index = match current_direction {
+                Direction::Left => {
+                    if current_index + 1 < current_level.len() {
+                        current_index + 1
+                    } else {
+                        current_index
+                    }
                 }
-            } else {
-                current_index - 1
+                Direction::Right => current_index - 1,
             };
-
-            // I used !is_left to indicate if the sibling is on the right
-            proof.push((current_level[sibling_index], !is_left));
+            let sibling_direction = match current_direction {
+                Direction::Left => Direction::Right,
+                Direction::Right => Direction::Left,
+            };
+            proof.push((current_level[sibling_index], sibling_direction));
 
             current_index /= 2;
         }
@@ -119,7 +155,7 @@ impl MerkleTree {
 
     /// Validates a Merkle proof for a given piece of data
     /// Returns true if the proof is valid, false otherwise
-    pub fn verify_proof(&self, data: &[u8], proof: &MerkleProof) -> bool {
+    pub fn verify_proof<T: AsRef<[u8]>>(&self, data: &T, proof: &MerkleProof) -> bool {
         // First hash the data
         let mut current_hash = hash(data);
 
@@ -127,15 +163,10 @@ impl MerkleTree {
         let root = self.root();
 
         // Work up from the leaf to the root using the proof
-        for (sibling_hash, is_current_left) in proof {
-            // If is_current_left is true, then our current_hash is on the left
-            // and the sibling_hash should go on the right.
-            // If is_current_left is false, then our current_hash is on the right
-            // and the sibling_hash should go on the left.
-            current_hash = if *is_current_left {
-                hash_internal_node(sibling_hash, &current_hash)
-            } else {
-                hash_internal_node(&current_hash, sibling_hash)
+        for (sibling_hash, sibling_direction) in proof {
+            current_hash = match sibling_direction {
+                Direction::Left => hash_internal_node(sibling_hash, &current_hash),
+                Direction::Right => hash_internal_node(&current_hash, sibling_hash),
             };
         }
 
@@ -167,10 +198,7 @@ mod tests {
             b"block4".to_vec(),
         ];
 
-        let merkle = MerkleTree::new(&data);
-
-        // Verify tree structure is not empty
-        assert!(!merkle.tree.is_empty());
+        let merkle = MerkleTree::new(&data).expect("Should create merkle tree");
 
         let leaf1 = hash(&data[0]);
         let leaf2 = hash(&data[1]);
@@ -205,7 +233,7 @@ mod tests {
     fn test_build_tree_odd_number() {
         let data = vec![b"block1".to_vec(), b"block2".to_vec(), b"block3".to_vec()];
 
-        let merkle = MerkleTree::new(&data);
+        let merkle = MerkleTree::new(&data).expect("Should create merkle tree");
 
         let leaf1 = hash(&data[0]);
         let leaf2 = hash(&data[1]);
@@ -236,7 +264,7 @@ mod tests {
             b"block4".to_vec(),
         ];
 
-        let merkle = MerkleTree::new(&data);
+        let merkle = MerkleTree::new(&data).expect("Should create merkle tree");
 
         let proof = merkle
             .generate_proof(&data[1])
@@ -253,7 +281,8 @@ mod tests {
         let _internal1 = hash_internal_node(&leaf1, &leaf2);
         let internal2 = hash_internal_node(&leaf3, &leaf4);
 
-        let expected_proof = vec![(leaf1, true), (internal2, false)];
+        // Left and the other is right
+        let expected_proof = vec![(leaf1, Direction::Left), (internal2, Direction::Right)];
 
         // Print the tree by levels and print the proof
         for level in merkle.tree.iter() {
@@ -269,7 +298,7 @@ mod tests {
     fn test_generate_proof_edge_case() {
         let data = vec![b"block1".to_vec(), b"block2".to_vec(), b"block3".to_vec()];
 
-        let merkle = MerkleTree::new(&data);
+        let merkle = MerkleTree::new(&data).expect("Should create merkle tree");
 
         let leaf1 = hash(&data[0]);
         let leaf2 = hash(&data[1]);
@@ -284,7 +313,7 @@ mod tests {
             .generate_proof(&data[1])
             .expect("Should generate proof");
 
-        let expected_proof = vec![(leaf1, true), (internal2, false)];
+        let expected_proof = vec![(leaf1, Direction::Left), (internal2, Direction::Right)];
 
         assert_eq!(proof, expected_proof);
     }
@@ -298,7 +327,7 @@ mod tests {
             b"block4".to_vec(),
         ];
 
-        let merkle = MerkleTree::new(&data);
+        let merkle = MerkleTree::new(&data).expect("Should create merkle tree");
 
         // Generate and verify proof for "block2"
         let proof = merkle
@@ -320,7 +349,7 @@ mod tests {
     fn test_verify_proof_edge_case() {
         let data = vec![b"block1".to_vec(), b"block2".to_vec(), b"block3".to_vec()];
 
-        let merkle = MerkleTree::new(&data);
+        let merkle = MerkleTree::new(&data).expect("Should create merkle tree");
 
         let proof = merkle
             .generate_proof(&data[1])
@@ -330,5 +359,42 @@ mod tests {
 
         // Verify with wrong data (should fail)
         assert!(!merkle.verify_proof(b"wrong_data", &proof));
+    }
+
+    #[test]
+    fn test_generic_data_types() {
+        // Test with different types that implement AsRef<[u8]>
+        let string_data = vec![
+            String::from("test1"),
+            String::from("test2"),
+            String::from("test3"),
+        ];
+
+        let bytes_data = vec![vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9]];
+
+        let str_data = vec!["hello", "world", "!"];
+
+        // Test creation with different types
+        let string_merkle =
+            MerkleTree::new(&string_data).expect("Should create merkle tree from strings");
+        let bytes_merkle =
+            MerkleTree::new(&bytes_data).expect("Should create merkle tree from bytes");
+        let str_merkle = MerkleTree::new(&str_data).expect("Should create merkle tree from str");
+
+        // Test proof generation and verification with different types
+        let string_proof = string_merkle
+            .generate_proof(&string_data[0])
+            .expect("Should generate proof");
+        assert!(string_merkle.verify_proof(&string_data[0], &string_proof));
+
+        let bytes_proof = bytes_merkle
+            .generate_proof(&bytes_data[1])
+            .expect("Should generate proof");
+        assert!(bytes_merkle.verify_proof(&bytes_data[1], &bytes_proof));
+
+        let str_proof = str_merkle
+            .generate_proof(&str_data[2])
+            .expect("Should generate proof");
+        assert!(str_merkle.verify_proof(&str_data[2], &str_proof));
     }
 }
