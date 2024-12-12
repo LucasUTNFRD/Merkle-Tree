@@ -18,10 +18,16 @@ struct MerkleTree {
     leaves: Vec<Hash>,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum Direction {
+    Left,
+    Right,
+}
+
 /// Type alias for a Merkle proof
 /// A proof is a list of hashes that can be used to verify the membership of a leaf in the tree
-/// Each hash has associated a boolean value that indicates if the hash is a left or right sibling
-type MerkleProof = Vec<(Hash, bool)>;
+/// Each hash has associated a Direction Enum that indicates if the hash is a left or right sibling
+type MerkleProof = Vec<(Hash, Direction)>;
 
 fn hash<T: AsRef<[u8]>>(element: T) -> Hash {
     Sha3_256::digest(element).into()
@@ -33,6 +39,14 @@ fn hash_internal_node(left: &Hash, right: &Hash) -> Hash {
     hasher.update(left);
     hasher.update(right);
     hasher.finalize().into()
+}
+
+fn determine_direction(index: usize) -> Direction {
+    if index % 2 == 0 {
+        Direction::Left
+    } else {
+        Direction::Right
+    }
 }
 
 impl MerkleTree {
@@ -115,20 +129,23 @@ impl MerkleTree {
         // loop each level of the tree
         for level in 0..self.tree.len() - 1 {
             let current_level = &self.tree[level];
-            let is_left = current_index % 2 == 0;
-            let sibling_index = if is_left {
-                // if current sibling is left, check right sibling
-                if current_index + 1 < current_level.len() {
-                    current_index + 1
-                } else {
-                    current_index
+            // let is_left = current_index % 2 == 0;
+            let current_direction = determine_direction(current_index);
+            let sibling_index = match current_direction {
+                Direction::Left => {
+                    if current_index + 1 < current_level.len() {
+                        current_index + 1
+                    } else {
+                        current_index
+                    }
                 }
-            } else {
-                current_index - 1
+                Direction::Right => current_index - 1,
             };
-
-            // I used !is_left to indicate if the sibling is on the right
-            proof.push((current_level[sibling_index], !is_left));
+            let sibling_direction = match current_direction {
+                Direction::Left => Direction::Right,
+                Direction::Right => Direction::Left,
+            };
+            proof.push((current_level[sibling_index], sibling_direction));
 
             current_index /= 2;
         }
@@ -146,15 +163,10 @@ impl MerkleTree {
         let root = self.root();
 
         // Work up from the leaf to the root using the proof
-        for (sibling_hash, is_current_left) in proof {
-            // If is_current_left is true, then our current_hash is on the left
-            // and the sibling_hash should go on the right.
-            // If is_current_left is false, then our current_hash is on the right
-            // and the sibling_hash should go on the left.
-            current_hash = if *is_current_left {
-                hash_internal_node(sibling_hash, &current_hash)
-            } else {
-                hash_internal_node(&current_hash, sibling_hash)
+        for (sibling_hash, sibling_direction) in proof {
+            current_hash = match sibling_direction {
+                Direction::Left => hash_internal_node(sibling_hash, &current_hash),
+                Direction::Right => hash_internal_node(&current_hash, sibling_hash),
             };
         }
 
@@ -269,7 +281,8 @@ mod tests {
         let _internal1 = hash_internal_node(&leaf1, &leaf2);
         let internal2 = hash_internal_node(&leaf3, &leaf4);
 
-        let expected_proof = vec![(leaf1, true), (internal2, false)];
+        // Left and the other is right
+        let expected_proof = vec![(leaf1, Direction::Left), (internal2, Direction::Right)];
 
         // Print the tree by levels and print the proof
         for level in merkle.tree.iter() {
@@ -300,7 +313,7 @@ mod tests {
             .generate_proof(&data[1])
             .expect("Should generate proof");
 
-        let expected_proof = vec![(leaf1, true), (internal2, false)];
+        let expected_proof = vec![(leaf1, Direction::Left), (internal2, Direction::Right)];
 
         assert_eq!(proof, expected_proof);
     }
