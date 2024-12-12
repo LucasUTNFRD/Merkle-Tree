@@ -37,7 +37,7 @@ impl MerkleTree {
     /// Creates a new Merkle tree from a list of data elements.
     /// TODO: Make this function generic to accept any type that can be hashed.
     /// TODO:  Return an error if the data is empty.
-    pub fn new(data: &[Vec<u8>]) -> Result<Self, MerkleError> {
+    pub fn new<T: AsRef<[u8]>>(data: &[T]) -> Result<Self, MerkleError> {
         if data.is_empty() {
             return Err(MerkleError::EmptyData);
         }
@@ -88,7 +88,7 @@ impl MerkleTree {
     /// For now the proof is simply that a  list of hashes.
     /// Possible improvements:
     /// 1. Store the direction of the hash (left or right) and the level of the tree
-    pub fn generate_proof(&self, data: &[u8]) -> Result<MerkleProof, MerkleError> {
+    pub fn generate_proof<T: AsRef<[u8]>>(&self, data: &T) -> Result<MerkleProof, MerkleError> {
         // Find index of the leaf that corresponds to the given data
         let leaf_index = self
             .leaves
@@ -124,7 +124,7 @@ impl MerkleTree {
 
     /// Validates a Merkle proof for a given piece of data
     /// Returns true if the proof is valid, false otherwise
-    pub fn verify_proof(&self, data: &[u8], proof: &MerkleProof) -> bool {
+    pub fn verify_proof<T: AsRef<[u8]>>(&self, data: &T, proof: &MerkleProof) -> bool {
         // First hash the data
         let mut current_hash = hash(data);
 
@@ -332,5 +332,42 @@ mod tests {
 
         // Verify with wrong data (should fail)
         assert!(!merkle.verify_proof(b"wrong_data", &proof));
+    }
+
+    #[test]
+    fn test_generic_data_types() {
+        // Test with different types that implement AsRef<[u8]>
+        let string_data = vec![
+            String::from("test1"),
+            String::from("test2"),
+            String::from("test3"),
+        ];
+
+        let bytes_data = vec![vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9]];
+
+        let str_data = vec!["hello", "world", "!"];
+
+        // Test creation with different types
+        let string_merkle =
+            MerkleTree::new(&string_data).expect("Should create merkle tree from strings");
+        let bytes_merkle =
+            MerkleTree::new(&bytes_data).expect("Should create merkle tree from bytes");
+        let str_merkle = MerkleTree::new(&str_data).expect("Should create merkle tree from str");
+
+        // Test proof generation and verification with different types
+        let string_proof = string_merkle
+            .generate_proof(&string_data[0])
+            .expect("Should generate proof");
+        assert!(string_merkle.verify_proof(&string_data[0], &string_proof));
+
+        let bytes_proof = bytes_merkle
+            .generate_proof(&bytes_data[1])
+            .expect("Should generate proof");
+        assert!(bytes_merkle.verify_proof(&bytes_data[1], &bytes_proof));
+
+        let str_proof = str_merkle
+            .generate_proof(&str_data[2])
+            .expect("Should generate proof");
+        assert!(str_merkle.verify_proof(&str_data[2], &str_proof));
     }
 }
