@@ -69,7 +69,7 @@ impl MerkleTree {
         if data.is_empty() {
             return Err(MerkleError::EmptyData);
         }
-        let leaves: Vec<Hash> = data.iter().map(|element| hash(element)).collect();
+        let leaves: Vec<Hash> = data.iter().map(hash).collect();
         let mut tree = MerkleTree {
             tree: vec![],
             leaves,
