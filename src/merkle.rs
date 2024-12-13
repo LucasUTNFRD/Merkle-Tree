@@ -13,7 +13,7 @@ pub enum MerkleError {
 /// The tree is represented as a list of levels, where each level is a list of hashes
 /// The leaves are stored separately from the internal nodes
 /// The root hash is the first element of the last level
-struct MerkleTree {
+pub struct MerkleTree {
     tree: Vec<Vec<Hash>>,
     leaves: Vec<Hash>,
 }

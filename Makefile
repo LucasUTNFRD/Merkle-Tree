@@ -14,4 +14,3 @@ lint:
 	cargo clippy -- -D warnings
 
 .PHONY: all run test check lint
-
