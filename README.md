@@ -11,7 +11,7 @@ git clone https://github.com/LucasUTNFRD/Merkle-Tree.git && cd Merkle-Tree
 
 ## Features
 
-- Create Merkle trees from any data that implements `AsRef<[u8]>`
+- Create a Merkle Tree from any data type that implements the trait `AsRef<[u8]>`.
 - Generate Merkle proofs for leaf verification
 - Verify Merkle proofs
 - Add new elements to existing trees
