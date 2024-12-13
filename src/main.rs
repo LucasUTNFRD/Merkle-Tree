@@ -13,3 +13,4 @@ fn main() {
 
     let mut tree = MerkleTree::new(&block);
 }
+

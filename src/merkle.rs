@@ -398,3 +398,4 @@ mod tests {
         assert!(str_merkle.verify_proof(&str_data[2], &str_proof));
     }
 }
+
